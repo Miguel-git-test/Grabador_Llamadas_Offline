@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoxRecord - Grabador Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons (Local) -->
+    <script src="assets/lucide.min.js"></script>
+
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>VoxRecord</h1>
+        </header>
+
+        <!-- View: Recorder -->
+        <main id="record-view" class="view active">
+            <div class="recorder-container">
+                <canvas id="visualizer"></canvas>
+                <div class="timer" id="timer">00:00</div>
+                <button class="record-btn-large" id="record-btn">
+                    <i data-lucide="mic"></i>
+                </button>
+                <p id="status-text">Listo para grabar</p>
+            </div>
+        </main>
+
+        <!-- View: Gallery -->
+        <main id="gallery-view" class="view">
+            <h2>Tus Llamadas</h2>
+            <div id="recordings-list">
+                <!-- Recordings will appear here -->
+                <div id="empty-state" style="text-align: center; color: var(--text-secondary); margin-top: 50px;">
+                    <i data-lucide="folder-open" style="width: 48px; height: 48px;"></i>
+                    <p>No hay grabaciones guardadas</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- View: Wizard (Permissions) -->
+        <main id="wizard-view" class="view">
+            <h2>Guía de Configuración</h2>
+            <div class="glass" style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                <div class="guide-step">
+                    <h3>1. Permiso de Micrófono</h3>
+                    <p>Necesario para capturar el audio ambiental. Pulsa "Permitir" cuando el navegador lo solicite.</p>
+                </div>
+                <div class="guide-step">
+                    <h3>2. Modo Altavoz (Importante)</h3>
+                    <p>Para grabar a la otra persona, activa el <strong>Altavoz</strong> durante la llamada. Esto permitirá que el micrófono capte ambas voces.</p>
+                </div>
+                <div class="guide-step">
+                    <h3>3. Servicios de Accesibilidad</h3>
+                    <p>Si usas la versión instalable, ve a: <br><em>Ajustes > Accesibilidad > VoxRecord</em> y actívalo para mejorar la detección de llamadas.</p>
+                </div>
+                <button class="btn-primary" id="check-perms-btn">Verificar Permisos</button>
+            </div>
+        </main>
+
+        <!-- Navigation Bar -->
+        <nav class="glass">
+            <a href="#" class="nav-item active" data-view="record-view" id="nav-record">
+                <i data-lucide="mic"></i>
+                <span>Grabar</span>
+            </a>
+            <a href="#" class="nav-item" data-view="gallery-view" id="nav-gallery">
+                <i data-lucide="list"></i>
+                <span>Galería</span>
+            </a>
+            <a href="#" class="nav-item" data-view="wizard-view" id="nav-wizard">
+                <i data-lucide="shield-check"></i>
+                <span>Ajustes</span>
+            </a>
+        </nav>
+    </div>
+
+    <script type="module" src="main.js"></script>
+    <script>
+        // Initialize icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
