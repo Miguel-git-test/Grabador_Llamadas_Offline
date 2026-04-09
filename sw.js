@@ -5,7 +5,9 @@ const ASSETS = [
   './style.css',
   './main.js',
   './manifest.json',
-  './assets/lucide.min.js'
+  './assets/lucide.min.js',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {

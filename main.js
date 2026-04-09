@@ -50,6 +50,8 @@ const initNavigation = () => {
 };
 
 // -- Recording Logic --
+let recordingStartTime;
+
 const startRecording = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -61,12 +63,14 @@ const startRecording = async () => {
         };
 
         mediaRecorder.onstop = async () => {
+            const durationMs = Date.now() - recordingStartTime;
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            await saveRecording(audioBlob);
+            await saveRecording(audioBlob, durationMs);
             renderGallery();
         };
 
         mediaRecorder.start();
+        recordingStartTime = Date.now();
         startTime = Date.now();
         updateTimer();
         timerInterval = setInterval(updateTimer, 1000);
@@ -139,14 +143,21 @@ const startVisualizer = (stream) => {
 };
 
 // -- Storage --
-const saveRecording = async (blob) => {
+const saveRecording = async (blob, durationMs) => {
     const transaction = db.transaction(['recordings'], 'readwrite');
     const store = transaction.objectStore('recordings');
+    
+    const elapsed = Math.floor(durationMs / 1000);
+    const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const secs = String(elapsed % 60).padStart(2, '0');
+    const formattedDuration = `${mins}:${secs}`;
+
     const recording = {
         name: `Llamada ${new Date().toLocaleString()}`,
         date: new Date().toISOString(),
         blob: blob,
-        duration: document.getElementById('timer').innerText
+        duration: formattedDuration,
+        durationMs: durationMs
     };
     store.add(recording);
     return new Promise((resolve) => transaction.oncomplete = resolve);
@@ -184,6 +195,9 @@ const renameRecording = async (id, oldName) => {
 };
 
 // -- Gallery UI --
+let currentAudio = null;
+let currentAudioId = null;
+
 const renderGallery = async () => {
     const recordings = await getAllRecordings();
     const list = document.getElementById('recordings-list');
@@ -201,45 +215,106 @@ const renderGallery = async () => {
 
     recordings.reverse().forEach(rec => {
         const item = document.createElement('div');
-        item.className = 'recording-item glass';
+        item.className = `recording-item glass ${currentAudioId === rec.id ? 'active' : ''}`;
+        item.dataset.id = rec.id;
+        
         item.innerHTML = `
-            <div class="recording-info">
-                <div class="recording-title">${rec.name}</div>
-                <div class="recording-meta">${new Date(rec.date).toLocaleDateString()} • ${rec.duration}</div>
+            <div class="recording-header">
+                <div class="recording-info">
+                    <div class="recording-title">${rec.name}</div>
+                    <div class="recording-meta">${new Date(rec.date).toLocaleDateString()} • ${rec.duration}</div>
+                </div>
+                <div class="recording-actions">
+                    <button class="action-btn play-toggle" title="Reproducir">
+                        <i data-lucide="${currentAudioId === rec.id ? 'pause' : 'play'}"></i>
+                    </button>
+                    <button class="action-btn rename" title="Renombrar"><i data-lucide="edit-3"></i></button>
+                    <button class="action-btn delete" title="Borrar"><i data-lucide="trash-2"></i></button>
+                    <button class="action-btn download" title="Descargar"><i data-lucide="download"></i></button>
+                </div>
             </div>
-            <div class="recording-actions">
-                <button class="action-btn play" title="Reproducir"><i data-lucide="play"></i></button>
-                <button class="action-btn rename" title="Renombrar"><i data-lucide="edit-3"></i></button>
-                <button class="action-btn delete" title="Borrar"><i data-lucide="trash-2"></i></button>
-                <button class="action-btn download" title="Descargar"><i data-lucide="download"></i></button>
+            <div class="playback-container">
+                <div class="seek-bar-container">
+                    <span class="time-display current-time">00:00</span>
+                    <input type="range" class="seek-bar" value="0" min="0" max="${rec.durationMs || 0}">
+                    <span class="time-display total-time">${rec.duration}</span>
+                </div>
             </div>
         `;
 
         // Action Handlers
-        item.querySelector('.play').onclick = () => playAudio(rec.blob);
-        item.querySelector('.rename').onclick = () => renameRecording(rec.id, rec.name);
-        item.querySelector('.delete').onclick = () => deleteRecording(rec.id);
-        item.querySelector('.download').onclick = () => downloadAudio(rec.blob, rec.name);
+        item.querySelector('.play-toggle').onclick = () => togglePlayback(rec, item);
+        item.querySelector('.rename').onclick = (e) => { e.stopPropagation(); renameRecording(rec.id, rec.name); };
+        item.querySelector('.delete').onclick = (e) => { e.stopPropagation(); deleteRecording(rec.id); };
+        item.querySelector('.download').onclick = (e) => { e.stopPropagation(); downloadAudio(rec.blob, rec.name); };
 
         list.appendChild(item);
     });
     lucide.createIcons();
 };
 
-const playAudio = (blob) => {
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.play();
+const togglePlayback = (rec, item) => {
+    if (currentAudioId === rec.id) {
+        if (currentAudio.paused) {
+            currentAudio.play();
+            item.querySelector('.play-toggle i').setAttribute('data-lucide', 'pause');
+        } else {
+            currentAudio.pause();
+            item.querySelector('.play-toggle i').setAttribute('data-lucide', 'play');
+        }
+        lucide.createIcons();
+        return;
+    }
+
+    // New Audio
+    if (currentAudio) {
+        currentAudio.pause();
+        const activeItem = document.querySelector('.recording-item.active');
+        if (activeItem) activeItem.classList.remove('active');
+    }
+
+    const url = URL.createObjectURL(rec.blob);
+    currentAudio = new Audio(url);
+    currentAudioId = rec.id;
+    item.classList.add('active');
+    
+    const seekBar = item.querySelector('.seek-bar');
+    const currentTimeDisplay = item.querySelector('.current-time');
+    
+    currentAudio.ontimeupdate = () => {
+        const ms = currentAudio.currentTime * 1000;
+        seekBar.value = ms;
+        
+        const elapsed = Math.floor(currentAudio.currentTime);
+        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        currentTimeDisplay.innerText = `${mins}:${secs}`;
+    };
+
+    seekBar.oninput = () => {
+        currentAudio.currentTime = seekBar.value / 1000;
+    };
+
+    currentAudio.onended = () => {
+        item.classList.remove('active');
+        currentAudioId = null;
+        renderGallery();
+    };
+
+    currentAudio.play();
+    renderGallery(); // To update icons
 };
 
 const downloadAudio = (blob, name) => {
+    const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${name}.webm`;
+    a.download = `${safeName}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };
 
 // -- Initialization --
