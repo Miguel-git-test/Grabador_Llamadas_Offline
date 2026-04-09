@@ -54,7 +54,15 @@ let recordingStartTime;
 
 const startRecording = async () => {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Mejoramos la calidad desactivando los filtros que pueden "ahogar" la voz en grabaciones ambientales
+        const constraints = {
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
 
@@ -317,14 +325,41 @@ const downloadAudio = (blob, name) => {
     URL.revokeObjectURL(url);
 };
 
+// -- PWA Installation Logic --
+let deferredPrompt;
+const installBtn = document.getElementById('install-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Evitar que el navegador lo muestre automáticamente
+    e.preventDefault();
+    deferredPrompt = e;
+    // Mostrar nuestro botón personalizado
+    if (installBtn) installBtn.style.display = 'flex';
+});
+
+if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to install: ${outcome}`);
+        deferredPrompt = null;
+        installBtn.style.display = 'none';
+    });
+}
+
 // -- Initialization --
 document.addEventListener('DOMContentLoaded', async () => {
     await initDB();
     initNavigation();
 
-    // Register Service Worker
+    // Register Service Worker con la ruta correcta para GitHub Pages
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
+        const swPath = window.location.pathname.includes('/Grabador_Llamadas_Offline/') 
+            ? '/Grabador_Llamadas_Offline/sw.js' 
+            : './sw.js';
+
+        navigator.serviceWorker.register(swPath)
             .then(() => console.log('Service Worker Registered'));
     }
     
